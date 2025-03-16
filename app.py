@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
-app = Flask(_name_)
+app = Flask(__name__)
 CORS(app)
 
 # Vulnerable configuration
@@ -310,38 +310,24 @@ def login():
 
     # Vulnerability: Direct string concatenation in SQL query
     query = f"SELECT * FROM user WHERE username='{data['username']}' AND password='{data['password']}'"
-    result = db.engine.execute(query)
 
-    user = result.fetchone()
+    # Using SQLAlchemy instead of direct SQLite
+    user = User.query.filter_by(
+        username=data['username'],
+        # Vulnerability: plain text password comparison
+        password=data['password']
+    ).first()
 
     if user:
         token = jwt.encode({
-            'user_id': user[0],  # Fetching ID from raw query result
-            'username': user[1],
-            'role': user[3],  # Assuming role is at index 3
+            'user_id': user.id,
+            'username': user.username,
+            'role': user.role,
             'exp': datetime.utcnow() + timedelta(hours=24)
         }, app.config['SECRET_KEY'])
         return jsonify({'token': token})
 
     return jsonify({'message': 'Invalid credentials'}), 401
-
-    # Using SQLAlchemy instead of direct SQLite
-    #user = User.query.filter_by(
-        #username=data['username'],
-        # Vulnerability: plain text password comparison
-        #password=data['password']
-    #).first()
-
-    #if user:
-     #   token = jwt.encode({
-      #      'user_id': user.id,
-       #     'username': user.username,
-        #    'role': user.role,
-         #   'exp': datetime.utcnow() + timedelta(hours=24)
-        #}, app.config['SECRET_KEY'])
-        #return jsonify({'token': token})
-
-    #return jsonify({'message': 'Invalid credentials'}), 401
 # Vulnerability: No proper authentication check
 
 
@@ -547,7 +533,7 @@ def grade_student():
         return jsonify({'message': 'Error submitting grade'}), 500
 
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
 
